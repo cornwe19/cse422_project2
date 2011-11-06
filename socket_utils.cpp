@@ -1,8 +1,12 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <iostream>
 
 #include "common.h"
 #include "socket_utils.h"
+
+using namespace std;
 
 int SocketUtils::BindSocket( int type, int& port, const char** error )
 {
@@ -50,5 +54,30 @@ void SocketUtils::ReceiveMessages( int socket, int numMessages, ReceiveCallback 
 
       num_messages_received++;
 	}
+}
+
+void SocketUtils::SendMessage( const char* dest_ip, int dest_port, unicast_pkt data, const char** error )
+{
+	sockaddr_in dest_addr;
+
+	dest_addr.sin_family = AF_INET;
+	dest_addr.sin_port = htons( dest_port );
+	inet_pton( AF_INET, dest_ip, &dest_addr.sin_addr );
+
+	SendMessage( dest_addr, data, error );
+}
+
+void SocketUtils::SendMessage( sockaddr_in dest, unicast_pkt data, const char **error )
+{
+	int dest_sock = socket( AF_INET, SOCK_DGRAM, DEFAULT_PROTOCOL );
+	if( dest_sock < 0 )
+	{
+		*error = "Failed to create socket for noisy link sending";
+		return;
+	}
+
+	sendto( dest_sock, &data, sizeof(data), 0, (struct sockaddr*) &dest, sizeof(dest) );
+
+	close( dest_sock );
 }
 

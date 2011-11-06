@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <arpa/inet.h>
 #include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -8,10 +9,22 @@
 
 using namespace std;
 
+int _noisy_link_port;
+char* _noisy_link_IP;
+
 void MessageReceived( unicast_pkt data, sockaddr_in sender );
 
 int main( int argc, char** argv )
 {
+	if( argc < 4 )
+	{
+		 cout << "Usage: " << argv[0] << " <num messages> <noisy link IP> <noisy link port>" << endl;
+		 return PROGRAM_FAILURE;
+	}
+
+	_noisy_link_IP = argv[2]; 
+	_noisy_link_port = atoi( argv[3] );
+	
 	// TODO: make this run on a timer instead of relying on an expected message count
 	int expected_num_messages = atoi(argv[1]);
 	
@@ -38,6 +51,17 @@ int main( int argc, char** argv )
 
 void MessageReceived( unicast_pkt data, sockaddr_in sender )
 {
-	cout << "<base_station> received message with contents: " << ntohl( data.data ) << endl; 
+	cout << "<base_station> received message with contents: " << ntohl( data.data ) << endl;
+
+	const char* error = NULL;
+	SocketUtils::SendMessage( _noisy_link_IP, _noisy_link_port, data, &error );
+	if( error != NULL )
+	{
+		 cerr << "<base_station> " << error << endl;
+		 return;
+	}
+
+	cout << "<base_station> Forwarded message " << ntohl( data.data ) << " to "
+		  << _noisy_link_IP << ":" << _noisy_link_port << endl;
 }
 
