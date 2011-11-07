@@ -1,5 +1,10 @@
 #pragma once
 
+#ifndef _COMMON_H_
+#define _COMMON_H_
+
+#include <string.h>
+
 #define PROGRAM_FAILURE 2
 #define DEFAULT_PROTOCOL 0 
 
@@ -8,4 +13,6 @@
 struct unicast_pkt {
   unsigned int data;
 };
+
+#endif
 
