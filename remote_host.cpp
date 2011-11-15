@@ -10,10 +10,12 @@
 
 using namespace std;
 
-void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender );
+void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender, struct timeval** timeout );
 void ConsoleReceived( const char* message, bool* should_exit );
 
 int _noisy_ack_port;
+int _num_messages_received;
+unicast_pkt _last_message_received;
 
 int main( int argc, char** argv )
 {
@@ -24,6 +26,7 @@ int main( int argc, char** argv )
 	}
 
 	_noisy_ack_port = atoi( argv[1] );
+	_num_messages_received = 0;
 	
 	// Bind UDP socket
 	int udp_port = -1;
@@ -46,10 +49,16 @@ int main( int argc, char** argv )
 	return 0;
 }
 
-void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender )
+void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender, struct timeval** timeout )
 {
 	cout << "<remote_host> received message with contents: " << ntohl( data.data ) << endl; 
 	
+	if( _last_message_received.data < data.data )
+	{
+	   _last_message_received = data;
+	   _num_messages_received++;
+	}
+
 	char* ip_address = new char[INET_ADDRSTRLEN];
 	inet_ntop( AF_INET, &(sender.sin_addr), ip_address, INET_ADDRSTRLEN );
 
@@ -73,5 +82,6 @@ void ConsoleReceived( const char* message, bool* should_exit )
 	if( strncmp( message, "q", 1 ) == 0 || strncmp( message, "Q", 1 ) == 0 )
 	{
 		*should_exit = true;
+		cout << "Received " << _num_messages_received << " messages from base station" << endl;
 	}
 }

@@ -41,7 +41,10 @@ int SocketUtils::BindSocket( int type, int& port, const char** error )
    return sock;
 }
 
-void SocketUtils::ReceiveMessages( int* descriptors, int descriptors_len, SocketCallback socketMessageReceived, ConsoleCallback consoleMessageReceived )
+void SocketUtils::ReceiveMessages( int* descriptors, int descriptors_len,
+                                   SocketCallback socketMessageReceived,
+                                   ConsoleCallback consoleMessageReceived,
+                                   TimeoutCallback timeoutFired )
 {	
 	int fd_max = 0, offset_for_fd_upper_bound = 1;
 	for ( int fd = 0; fd < descriptors_len; fd++ )
@@ -56,7 +59,9 @@ void SocketUtils::ReceiveMessages( int* descriptors, int descriptors_len, Socket
    socklen_t client_length = sizeof(client);
    unicast_pkt sensor_data;
 
-	bool should_exit = false;
+   timeval* timeout = NULL;
+
+   bool should_exit = false;
 	while( !should_exit )
 	{
 		for( int fd_index = 0; fd_index < descriptors_len; fd_index++ )
@@ -65,28 +70,40 @@ void SocketUtils::ReceiveMessages( int* descriptors, int descriptors_len, Socket
 		}
 		FD_SET( 0, &readset );
 
-      select( fd_max, &readset, NULL, NULL, NULL );
-		
-   	for( int fd = 0; fd < descriptors_len; fd++ )
-   	{
-   		if( FD_ISSET( descriptors[fd], &readset ) )
-   		{
-   			recvfrom( descriptors[fd], &sensor_data,
-  					sizeof(sensor_data), 0, (sockaddr*)&client, &client_length );
-	
-				(*socketMessageReceived)( descriptors[fd], sensor_data, client );
+      if( select( fd_max, &readset, NULL, NULL, timeout ) > 0 )
+      {
+         if( timeout != NULL )
+         {
+            //delete timeout;
+            timeout = NULL;
+         }
 
-				FD_CLR( descriptors[fd], &readset );
-			}
-		}
-		
-		const int console_fd = 0;
-		if( FD_ISSET( console_fd, &readset ) )
-		{
-			char message[256];
-			cin >> message;
-			(*consoleMessageReceived)( message, &should_exit );
-		}
+         for( int fd = 0; fd < descriptors_len; fd++ )
+         {
+            if( FD_ISSET( descriptors[fd], &readset ) )
+            {
+               recvfrom( descriptors[fd], &sensor_data,
+                  sizeof(sensor_data), 0, (sockaddr*)&client, &client_length );
+
+               (*socketMessageReceived)( descriptors[fd], sensor_data, client, &timeout );
+
+               FD_CLR( descriptors[fd], &readset );
+            }
+         }
+
+         const int console_fd = 0;
+         if( FD_ISSET( console_fd, &readset ) )
+         {
+            char message[256];
+            cin >> message;
+            (*consoleMessageReceived)( message, &should_exit );
+         }
+      }
+      else if( timeoutFired != NULL )
+      {
+         cout << "Timer expired, retransmitting message" << endl;
+         (*timeoutFired)();
+      }
 	}
 }
 
