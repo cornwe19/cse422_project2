@@ -124,7 +124,8 @@ void SocketUtils::ReceiveMessages( int* descriptors, int descriptors_len,
             timeout = NULL;
          }
 
-         (*timeoutFired)();
+         // Allow callback to reset timeout for multiple retransmissions
+         (*timeoutFired)( &timeout );
       }
 	}
 }

@@ -10,7 +10,7 @@
 
 using namespace std;
 
-#define RETRANSMIT_USEC 500 // Retransmit every 5 milliseconds
+#define RETRANSMIT_USEC 500 // Retransmit every .5 milliseconds
 
 int _noisy_link_port;
 char* _noisy_link_IP;
@@ -21,9 +21,14 @@ int _sensor_sock;
 unicast_pkt _current_message;
 unicast_pkt _currented_acked_message;
 
+// keep track of number of transmissions
+double _num_transmissions;
+double _num_messages_total;
+
 void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender, struct timeval** timeout );
 void ConsoleReceived( const char* message, bool* should_exit );
-void RetransmitMessage();
+void RetransmitMessage(struct timeval** timeout);
+void SetTimeOut( struct timeval** timeout );
 
 int main( int argc, char** argv )
 {
@@ -35,6 +40,9 @@ int main( int argc, char** argv )
 
 	_noisy_link_IP = argv[1]; 
 	_noisy_link_port = atoi( argv[2] );
+
+	_num_transmissions = 0;
+	_num_messages_total = 0;
 
 	// Setup socket to noisy link
 	_noisy_link_sock = socket( AF_INET, SOCK_DGRAM, DEFAULT_PROTOCOL );
@@ -55,7 +63,7 @@ int main( int argc, char** argv )
    }
    else
    {
-      cout << "<base_station> Server started. Running on port: " << udp_port << endl;
+      cout << "<base_station> Server started. Running on port: " << udp_port << " -- press 'q' to exit" << endl;
    }
 
    // Register noisy link and sensor network as file descriptors to listen to
@@ -73,7 +81,7 @@ int main( int argc, char** argv )
 // Called when utils detect data on a socket
 void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender, struct timeval** timeout )
 {
-	// Got an ACk
+	// Got an ACK
    if ( _noisy_link_sock == socket )
 	{
 		cout << "<base_station> Received ACK for " << ntohl( data.data ) << endl;
@@ -85,17 +93,17 @@ void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender, struct ti
 	   cout << "<base_station> Received new message with contents: " << ntohl( data.data ) << endl;
 
 	   _current_message = data;
+	   _num_messages_total++;
 
 	   SocketUtils::SendMessage( _noisy_link_IP, _noisy_link_port, data, _noisy_link_sock );
+
+	   _num_transmissions++;
 
 		cout << "<base_station> Forwarded message " << ntohl( data.data ) << " to "
 		  	  << _noisy_link_IP << ":" << _noisy_link_port << endl;
 
 		// Set timeout to retransmit if we dont hear anything back from the noisy link
-		timeval* val = new timeval();
-		val->tv_sec = 0;
-		val->tv_usec = RETRANSMIT_USEC;
-		*timeout = val;
+		SetTimeOut( timeout );
 	}
 }
 
@@ -105,15 +113,29 @@ void ConsoleReceived( const char* message, bool* should_exit )
 	if( strncmp( message, "q", 1 ) == 0 || strncmp( message, "Q", 1 ) == 0 )
 	{
 		*should_exit = true;
+		cout << "<base_station> Base station transmission ratio: " << _num_transmissions / _num_messages_total << endl;
 	}
 }
 
 // Called when socket utils detect time out
-void RetransmitMessage()
+void RetransmitMessage( timeval** timeout )
 {
    if( _current_message.data > _currented_acked_message.data )
    {
       cout << "<base_station> Retransmitting " << ntohl( _current_message.data ) << endl;
       SocketUtils::SendMessage( _noisy_link_IP, _noisy_link_port, _current_message, _noisy_link_sock );
+
+      // Set timeout to retransmit if we still dont hear back from remote host
+      SetTimeOut( timeout );
+
+      _num_transmissions++;
    }
+}
+
+void SetTimeOut( struct timeval** timeout )
+{
+   timeval* val = new timeval();
+   val->tv_sec = 0;
+   val->tv_usec = RETRANSMIT_USEC;
+   *timeout = val;
 }

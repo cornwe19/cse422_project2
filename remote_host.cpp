@@ -18,6 +18,7 @@ int _noisy_ack_port;
 // Keep track of the last message we got from the base station via the noisy link
 unicast_pkt _last_message_received;
 int _num_messages_received;
+int _first_seq_received;
 
 int main( int argc, char** argv )
 {
@@ -30,6 +31,8 @@ int main( int argc, char** argv )
 	_noisy_ack_port = atoi( argv[1] );
 	_num_messages_received = 0;
 	
+	_first_seq_received = -1;
+
 	// Bind UDP socket
 	int udp_port = -1;
 	const char* udp_error = NULL;
@@ -41,7 +44,8 @@ int main( int argc, char** argv )
    }
    else
    {
-      cout << "UDP server running on port: " << udp_port << endl;
+      cout << "<remote_host> UDP server running on port: " << udp_port << " -- press 'q' to exit" << endl;
+
    }
 
    // Accept messages from the udp socket, ignore timeout messages
@@ -55,7 +59,13 @@ int main( int argc, char** argv )
 // Delegate to be fired when data is available from the noisy link
 void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender, struct timeval** timeout )
 {
-	// Make sure the message we got wasnt a duplicate
+   // Store the first seq number to get an estimated packet receive ratio
+   if( _first_seq_received < 0 )
+   {
+      _first_seq_received = ntohl( data.data );
+   }
+
+   // Make sure the message we got wasnt a duplicate
 	if( _last_message_received.data < data.data )
 	{
 	   cout << "<remote_host> received message with contents: " << ntohl( data.data ) << endl;
@@ -71,7 +81,7 @@ void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender, struct ti
    const char* error = NULL;
    int message_sock = SocketUtils::SendMessage( ip_address, _noisy_ack_port,  data, &error );
    close( message_sock ); // clean up sock immediately, we wont need to retransmit once the ack is sent
-   delete[] ip_address;
+
 
    if( error != NULL )
    {
@@ -80,6 +90,7 @@ void SocketReceived( int socket, unicast_pkt data, sockaddr_in sender, struct ti
    }
 
    cout << "<remote_host> ACK sent to " << ip_address << ":" << _noisy_ack_port << endl;
+   delete[] ip_address;
 }
 
 // Delegate to be fired when we receive input from the console
@@ -88,6 +99,9 @@ void ConsoleReceived( const char* message, bool* should_exit )
 	if( strncmp( message, "q", 1 ) == 0 || strncmp( message, "Q", 1 ) == 0 )
 	{
 		*should_exit = true;
-		cout << "Received " << _num_messages_received << " messages from base station" << endl;
+		double percentReceived = ((double)_num_messages_received/(double)(ntohl(_last_message_received.data) - _first_seq_received) * 100);
+
+		cout << "Received " << _num_messages_received << " messages from base station";
+		cout << " (~" << percentReceived << "% received)" << endl;
 	}
 }

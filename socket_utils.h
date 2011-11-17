@@ -10,7 +10,7 @@
 // Define a few delegates for base station and remote host to implement as callbacks for events in the system
 typedef void (*SocketCallback)( int socket, unicast_pkt data, sockaddr_in sender, struct timeval** timeout );
 typedef void (*ConsoleCallback)( const char* message, bool* exit );
-typedef void (*TimeoutCallback)();
+typedef void (*TimeoutCallback)( struct timeval** timeout );
 
 // Static class defining some utility methods used in base station and remote host
 class SocketUtils
