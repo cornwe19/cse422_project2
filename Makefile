@@ -1,4 +1,4 @@
-all: noisy_link remote_host base_station sensor_network
+all: mkdirs noisy_link remote_host base_station sensor_network
 
 noisy_link: noisy_link.c
 	g++ noisy_link.c -g -o bin/noisy_link
@@ -14,6 +14,9 @@ base_station: base_station.cpp socket_utils.o
 
 sensor_network: sensor_network.c
 	g++ sensor_network.c -g -o bin/sensor_network
+
+mkdirs:
+	mkdir -p bin
 
 clean:
 	rm -rf bin/*
